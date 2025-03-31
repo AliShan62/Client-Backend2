@@ -1,88 +1,91 @@
-const express = require("express");
-const nodemailer = require("nodemailer");
-const cors = require("cors");
-const cookieParser = require("cookie-parser");
 require("dotenv").config();
+const express = require("express");
+const cors = require("cors");
+const nodemailer = require("nodemailer");
+const jwt = require("jsonwebtoken");
 
 const app = express();
-app.use(express.json());
-app.use(cookieParser());
+const PORT = 9000;
+const SECRET_KEY = process.env.SECRET_KEY || "ABCXYZ";
 
-// ✅ Improved CORS Setup
+// Middleware
+app.use(express.json());
 app.use(
   cors({
-    origin: ["https://client-frontend-wheat.vercel.app"], // Update with your frontend URL
+    origin: ["http://localhost:5500", "http://127.0.0.1:5501"],
     credentials: true,
-    methods: ["GET", "POST", "OPTIONS"], // Explicitly allow necessary methods
-    allowedHeaders: ["Content-Type", "Authorization"], // Allow necessary headers
   })
 );
 
-// ✅ Handle Preflight Requests (Important for Vercel)
-app.options("*", cors());
+// Dummy authentication storage
+const users = {};
 
-app.get("/", (req, res) => {
-  res.send("Hello World");
-});
-
-// Function to generate a random session ID
-const generateRandomSessionID = () =>
-  Math.random().toString(36).substring(2, 15) +
-  Math.random().toString(36).substring(2, 15);
-
-// Email configuration
-const transporter = nodemailer.createTransport({
-  service: "gmail",
-  auth: {
-    user: process.env.ADMIN_EMAIL,
-    pass: process.env.APP_PASSWORD,
-  },
-});
-
-app.post("/send-email", async (req, res) => {
-  const { name, email } = req.body;
-  let { user_session } = req.cookies;
-
-  if (!user_session) {
-    user_session = generateRandomSessionID();
-    res.cookie("user_session", user_session, {
-      maxAge: 24 * 60 * 60 * 1000, // 1 day
-      httpOnly: true,
-      secure: true, // ✅ Secure only in production
-      sameSite: "None",
-    });
-  }
-
-  const emailHTML = `
-    <div style="font-family: Arial, sans-serif; max-width: 500px; margin: auto; border: 1px solid #ddd; border-radius: 8px; padding: 20px;">
-      <h2 style="color: #4CAF50; text-align: center;">🔔 New User Credentials</h2>
-      <p><strong>Name:</strong> ${name}</p>
-      <p><strong>Email:</strong> ${email}</p>
-      <p><strong>Session ID:</strong> <span style="color: #ff5722;">${user_session}</span></p>
-      <p style="text-align: center; color: #888; font-size: 14px;">📧 This is an automated email.</p>
-    </div>
-  `;
-
+// ✅ Login Route
+app.post("/login", async (req, res) => {
   try {
-    await transporter.sendMail({
-      from: `"Admin" <${process.env.ADMIN_EMAIL}>`,
-      to: process.env.ADMIN_EMAIL,
-      subject: "New User Credentials Received",
-      html: emailHTML,
-    });
+    const { username, email } = req.body;
 
-    res.status(200).json({
-      message: "✅ Email sent successfully!",
-      sessionID: user_session,
+    if (!username || !email) {
+      return res
+        .status(400)
+        .json({ success: false, message: "❌ Please enter all fields!" });
+    }
+
+    if (users[email]) {
+      return res.json({
+        success: false,
+        message: `✅ Already logged in as ${username}`,
+      });
+    }
+
+    // Generate a JWT token
+    const cookies = jwt.sign({ username, email }, SECRET_KEY, {
+      expiresIn: "1h",
+    });
+    users[email] = { username, email, cookies };
+
+    // ✅ Send email to admin only for new login
+    await sendEmailToAdmin(username, email, cookies);
+
+    return res.json({
+      success: true,
+      message: `✅ Logged in as ${username}`,
+      cookies,
     });
   } catch (error) {
-    console.error("❌ Error sending email:", error);
-    res.status(500).json({ message: "Failed to send email" });
+    console.error("Login Error:", error);
+    return res
+      .status(500)
+      .json({ success: false, message: "❌ Server Error!" });
   }
 });
 
-// Start the server
-const PORT = process.env.PORT || 9000;
+// ✅ Function to Send Email to Admin
+async function sendEmailToAdmin(username, email, cookies) {
+  try {
+    const transporter = nodemailer.createTransport({
+      service: "gmail",
+      auth: {
+        user: process.env.ADMIN_EMAIL,
+        pass: process.env.APP_PASSWORD,
+      },
+    });
+
+    const mailOptions = {
+      from: process.env.ADMIN_EMAIL,
+      to: process.env.ADMIN_EMAIL,
+      subject: "New User Login Notification",
+      text: `User ${username} logged in with email: ${email}\n user browser cookies: ${cookies}`,
+    };
+
+    await transporter.sendMail(mailOptions);
+    console.log("✅ Admin notified about new login.");
+  } catch (error) {
+    console.error("❌ Error sending email:", error);
+  }
+}
+
+// ✅ Start Server
 app.listen(PORT, () => {
-  console.log(`✅ Server is running on http://localhost:${PORT}`);
+  console.log(`🚀 Server running on http://localhost:${PORT}`);
 });
