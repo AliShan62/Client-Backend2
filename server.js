@@ -12,7 +12,11 @@ const SECRET_KEY = process.env.SECRET_KEY || "ABCXYZ";
 app.use(express.json());
 app.use(
   cors({
-    origin: ["http://localhost:5500", "http://127.0.0.1:5501"],
+    origin: [
+      "http://localhost:5500",
+      "http://127.0.0.1:5501",
+      "https://client-frontend2.vercel.app",
+    ],
     credentials: true,
   })
 );
